@@ -18,6 +18,7 @@ import { meetingRoutes } from "./routes/meetings.ts";
 import { taskRoutes } from "./routes/tasks.ts";
 import { recoverStaleJobs } from "./services/meetings.ts";
 import { closeAllSubscribers } from "./services/realtime.ts";
+import { storageInfo } from "./services/storage.ts";
 import { sweepReminders } from "./services/reminders.ts";
 
 /** 提醒扫描间隔：默认 60s；测试时可用环境变量缩短 */
@@ -60,6 +61,7 @@ export async function buildApp(): Promise<FastifyInstance> {
       ok,
       service: "war-room-api",
       db,
+      storage: storageInfo().driver,
       uptimeSec: Math.round(process.uptime()),
       time: new Date().toISOString(),
     };

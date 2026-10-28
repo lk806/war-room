@@ -1,4 +1,4 @@
-﻿import { createHash } from "node:crypto";
+import { createHash } from "node:crypto";
 import {
   createReadStream,
   createWriteStream,
@@ -15,7 +15,14 @@ import {
   isBlockedFileExtension,
   type FileItem,
 } from "@war-room/shared";
-import { MAX_UPLOAD_BYTES, STORAGE_DIR } from "../config.ts";
+import { MAX_UPLOAD_BYTES, STORAGE_DIR, SUPABASE_PUBLIC_URLS } from "../config.ts";
+import {
+  STORAGE_DRIVER,
+  publicObjectUrl,
+  removeObject,
+  uploadObject,
+  type StorageDriver,
+} from "./storage.ts";
 import { all, get, run } from "../db/index.ts";
 import { ApiError, badRequest, forbidden, notFound } from "../lib/http.ts";
 import { newId, nowIso } from "../lib/id.ts";
@@ -30,6 +37,7 @@ interface FileRow {
   mime: string;
   size: number;
   storage_key: string;
+  storage_driver: string;
   version: number;
   task_id: string | null;
   download_count: number;
@@ -41,7 +49,7 @@ interface FileRow {
 
 const SELECT_FILES = `
   SELECT f.id, f.group_id, f.uploader_id, f.name, f.mime, f.size, f.storage_key,
-         f.version, f.task_id, f.download_count, f.created_at,
+         f.storage_driver, f.version, f.task_id, f.download_count, f.created_at,
          u.name AS uploader_name, u.avatar_color AS uploader_color,
          t.title AS task_title
     FROM files f
@@ -62,6 +70,11 @@ const toItem = (row: FileRow): FileItem => ({
   taskId: row.task_id,
   taskTitle: row.task_title,
   downloadCount: row.download_count,
+  // 云端存储时给出可直接访问的公网地址（private 桶请走 /download 接口拿签名地址）
+  url:
+    row.storage_driver === "supabase" && SUPABASE_PUBLIC_URLS
+      ? publicObjectUrl(row.storage_key)
+      : null,
   createdAt: row.created_at,
 });
 
@@ -314,13 +327,30 @@ export async function saveUpload(
   }
 
   const sha256 = hash.digest("hex");
-  const targetPath = path.join(STORAGE_DIR, sha256);
+  const mime = sniffMagic(head) ?? MIME_BY_EXT[ext] ?? part.mimetype ?? "application/octet-stream";
 
-  // 内容寻址：同一份内容只落一次盘
-  if (existsSync(targetPath)) {
-    unlinkSync(tempPath);
+  /*
+   * 落存储：配了 Supabase 就传云端（对象路径 groupId/sha256，内容寻址天然去重），
+   * 否则沿用本地磁盘。两种后端写同样的 storage_key 字段，靠 storage_driver 区分。
+   */
+  let storageKey = sha256;
+  if (STORAGE_DRIVER === "supabase") {
+    storageKey = `${ctx.groupId}/${sha256}`;
+    try {
+      await uploadObject(storageKey, tempPath, mime);
+    } catch (error) {
+      if (existsSync(tempPath)) unlinkSync(tempPath);
+      throw new ApiError(502, error instanceof Error ? error.message : "上传到对象存储失败");
+    }
+    if (existsSync(tempPath)) unlinkSync(tempPath);
   } else {
-    renameSync(tempPath, targetPath);
+    const targetPath = path.join(STORAGE_DIR, sha256);
+    // 内容寻址：同一份内容只落一次盘
+    if (existsSync(targetPath)) {
+      unlinkSync(tempPath);
+    } else {
+      renameSync(tempPath, targetPath);
+    }
   }
 
   const previous = get<{ version: number | null }>(
@@ -332,20 +362,20 @@ export async function saveUpload(
 
   const id = newId();
   const createdAt = nowIso();
-  const mime = sniffMagic(head) ?? MIME_BY_EXT[ext] ?? part.mimetype ?? "application/octet-stream";
 
   run(
     `INSERT INTO files
-       (id, group_id, uploader_id, name, mime, size, storage_key, sha256,
+       (id, group_id, uploader_id, name, mime, size, storage_key, storage_driver, sha256,
         version, task_id, download_count, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
     id,
     ctx.groupId,
     ctx.userId,
     name,
     mime,
     size,
-    sha256,
+    storageKey,
+    STORAGE_DRIVER,
     sha256,
     version,
     taskId,
@@ -379,13 +409,21 @@ export function getFileAsMember(groupId: string, fileId: string, userId: string)
   return toItem(row);
 }
 
-export function getFileRow(fileId: string): { item: FileItem; storageKey: string } | null {
+export function getFileRow(fileId: string): {
+  item: FileItem;
+  storageKey: string;
+  driver: StorageDriver;
+} | null {
   const row = get<FileRow & { storage_key: string }>(
     `${SELECT_FILES} WHERE f.id = ?`,
     fileId,
   );
   if (!row) return null;
-  return { item: toItem(row), storageKey: row.storage_key };
+  return {
+    item: toItem(row),
+    storageKey: row.storage_key,
+    driver: row.storage_driver === "supabase" ? "supabase" : "local",
+  };
 }
 
 export function countDownload(fileId: string): void {
@@ -403,26 +441,31 @@ export function deleteFile(
     throw forbidden("只有上传者或组长可以删除");
   }
 
-  const storageKey = get<{ storage_key: string }>(
-    "SELECT storage_key FROM files WHERE id = ?",
+  const stored = get<{ storage_key: string; storage_driver: string }>(
+    "SELECT storage_key, storage_driver FROM files WHERE id = ?",
     fileId,
-  )?.storage_key;
+  );
 
   run("DELETE FROM files WHERE id = ?", fileId);
   run("DELETE FROM contribution_events WHERE ref_type = 'file' AND ref_id = ?", fileId);
 
-  // 内容寻址：没有其他记录引用同一份内容时才删磁盘
-  if (storageKey) {
+  // 内容寻址：没有其他记录引用同一份内容时才真正删存储
+  if (stored?.storage_key) {
     const stillUsed = get<{ id: string }>(
       "SELECT id FROM files WHERE storage_key = ? LIMIT 1",
-      storageKey,
+      stored.storage_key,
     );
     if (!stillUsed) {
-      const absolute = storagePathFor(storageKey);
-      try {
-        if (existsSync(absolute) && statSync(absolute).isFile()) unlinkSync(absolute);
-      } catch {
-        /* 磁盘删除失败不影响元数据已清理 */
+      if (stored.storage_driver === "supabase") {
+        // 云端删除失败只记日志，不影响元数据已清理
+        void removeObject(stored.storage_key).catch(() => undefined);
+      } else {
+        const absolute = storagePathFor(stored.storage_key);
+        try {
+          if (existsSync(absolute) && statSync(absolute).isFile()) unlinkSync(absolute);
+        } catch {
+          /* 磁盘删除失败不影响元数据已清理 */
+        }
       }
     }
   }

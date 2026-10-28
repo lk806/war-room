@@ -1,6 +1,8 @@
-import { createReadStream, existsSync } from "node:fs";
+﻿import { createReadStream, existsSync } from "node:fs";
+import { Readable } from "node:stream";
 import type { FastifyInstance } from "fastify";
 import { formatFileLimit, type FileItem, type ReminderItem } from "@war-room/shared";
+import { fetchObject, signedObjectUrl, storageInfo } from "../services/storage.ts";
 import { MAX_UPLOAD_BYTES } from "../config.ts";
 import { ApiError, badRequest, notFound } from "../lib/http.ts";
 import { requireUser } from "../lib/session.ts";
@@ -21,7 +23,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
     const user = requireUser(request);
     const { groupId } = request.params as { groupId: string };
     requireMember(groupId, user.id);
-    return { files: listFiles(groupId), maxBytes: MAX_UPLOAD_BYTES };
+    return { files: listFiles(groupId), maxBytes: MAX_UPLOAD_BYTES, storage: storageInfo() };
   });
 
   app.post("/api/groups/:groupId/files", async (request, reply) => {
@@ -63,11 +65,6 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
     // 只有组员能下载
     getFileAsMember(row.item.groupId, fileId, user.id);
 
-    const absolute = storagePathFor(row.storageKey);
-    if (!existsSync(absolute)) throw notFound("文件内容已丢失，请重新上传");
-
-    countDownload(fileId);
-
     const encoded = encodeURIComponent(row.item.name);
     reply
       .header("Content-Type", row.item.mime)
@@ -78,6 +75,25 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
         `attachment; filename="download"; filename*=UTF-8''${encoded}`,
       )
       .header("X-Content-Type-Options", "nosniff");
+
+    // 云端存储：后端拿短期签名 URL 再代理流式返回，
+    // 这样既能做成员校验、又不把桶的访问权直接暴露给前端
+    if (row.driver === "supabase") {
+      let upstream: Response;
+      try {
+        upstream = await fetchObject(await signedObjectUrl(row.storageKey));
+      } catch {
+        throw notFound("文件内容读取失败，请稍后重试");
+      }
+      if (!upstream.ok || !upstream.body) throw notFound("文件内容已丢失，请重新上传");
+      countDownload(fileId);
+      return reply.send(Readable.fromWeb(upstream.body as never));
+    }
+
+    const absolute = storagePathFor(row.storageKey);
+    if (!existsSync(absolute)) throw notFound("文件内容已丢失，请重新上传");
+
+    countDownload(fileId);
 
     return reply.send(createReadStream(absolute));
   });

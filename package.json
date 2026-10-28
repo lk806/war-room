@@ -24,7 +24,8 @@
     "stub:llm": "node scripts/stub-llm.mjs",
     "env:check": "node --env-file-if-exists=.env scripts/check-env.mjs",
     "check:rate": "node scripts/check-rate-limit.mjs",
-    "grant:ai": "node scripts/grant-ai.mjs"
+    "grant:ai": "node scripts/grant-ai.mjs",
+    "db:migrate": "npm run db:migrate -w @war-room/api"
   },
   "engines": {
     "node": ">=24.0.0"

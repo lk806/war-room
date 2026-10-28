@@ -1,4 +1,4 @@
-# 小组作业作战室 · War Room
+﻿# 小组作业作战室 · War Room
 
 > 面向 4–6 人课程小组的协作工作台：把 **任务看板、DDL 提醒、文件共享、贡献记录、会议纪要** 收进同一个页面，并让 AI 负责"把话说清楚"和"把活拆开"。
 
@@ -84,8 +84,14 @@
 | 数据库 | **SQLite（Node 内置 `node:sqlite`）** | **不使用 Prisma**：见下方说明 |
 | 实时 | **SSE**（Server-Sent Events） | 比 WebSocket 简单，走 HTTP 长连接，25s 心跳 |
 | AI | OpenAI 兼容协议 | 文本走 `/chat/completions`（默认 DeepSeek），语音走 `/audio/transcriptions`；JSON 输出 Zod 校验 + 失败重试 |
-| 部署 | **Docker 单进程 + Railway Volume** | 前端产物由 Fastify 托管，SQLite 与上传文件落在 `/data` |
+| 对象存储 | **Supabase Storage**（可选） | 配置后文件上传走 `@supabase/supabase-js`，返回公网 URL；未配置则回退本地磁盘 |
+| 部署 | **Docker 单进程 + Railway Volume** | 前端产物由 Fastify 托管，SQLite 与（未上云时的）上传文件落在 `/data` |
 
+> **文件存储双后端**：文件表里用 `storage_driver` 记录每条文件存在哪（`local` = 本地磁盘 / `supabase` = 云端桶）。
+> 上传时按环境变量自动分流：配了 `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` 就传桶并返回公网 URL，没配就落 `DATA_DIR/storage`。
+> 下载始终走 `/api/files/:id/download`（成员校验 → 云端签名 URL → 后端代理流式返回），所以桶设成 private 也不影响使用。
+> 对象路径是 `groupId/sha256`，内容寻址天然去重。
+>
 > **为什么不用 Prisma**：Prisma 需要额外的 query engine 二进制和 `prisma generate`，在 Alpine / 受限网络里容易失配；本项目用 `node:sqlite` + 手写 `schema.sql`，`npm ci` 后即可运行，容器体积与启动链路都更短。数据访问层集中在 `apps/api/src/db/`，将来要换 ORM 也只动这一层。
 
 ## 本地运行
@@ -147,6 +153,9 @@ npm start         # Fastify 同时托管 /api 与静态文件：http://localhost
 | `PORT` / `HOST` | `4000` / `0.0.0.0` | 监听地址 |
 | `COOKIE_SECURE` | 生产 `true` | 通过 HTTPS 访问时必须 `true`，否则浏览器不保存登录态 |
 | `MAX_UPLOAD_BYTES` | `209715200`（200MB） | 单文件上限 |
+| `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | 空 | 对象存储；两项都配了才启用云端，否则存本地磁盘 |
+| `SUPABASE_BUCKET` | `war-room-files` | 存储桶名，需先在 Supabase 控制台创建 |
+| `SUPABASE_PUBLIC_URLS` | `true` | 桶为 public 时返回公网直链；设为 `false` 则只给签名下载 |
 | `RATE_LIMIT_AUTH_PER_MIN` / `RATE_LIMIT_AI_PER_MIN` | `40` / `20` | 登录注册、AI 调用的限流阈值 |
 | `REGISTER_ENABLED` | `true` | 设为 `false` 关闭自助注册（只允许邀请码加入） |
 | `LOG_LEVEL` | `info` | Fastify 日志级别 |
@@ -158,6 +167,7 @@ npm start         # Fastify 同时托管 /api 与静态文件：http://localhost
 | `npm run dev` / `dev:api` / `dev:web` | 同时起前后端 / 只起接口 / 只起前端 |
 | `npm run build` / `npm start` | 构建前端 / 单端口生产启动 |
 | `npm run seed` | 生成演示数据（幂等，已存在则跳过） |
+| `npm run db:migrate` | 初始化 / 升级数据库表结构（等价于 prisma migrate deploy 的角色） |
 | `npm run typecheck` | 前后端 `tsc --noEmit` |
 | `npm run smoke` / `check:p1` / `check:p2` / `check:p3` | 四套接口自检（共 141 项断言） |
 | `npm run reset:password -- <邮箱> <新密码>` | 重置账号密码（`-- --list` 查看所有账号） |

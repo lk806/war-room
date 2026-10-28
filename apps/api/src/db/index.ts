@@ -31,6 +31,7 @@ function ensureColumn(table: string, column: string, definition: string): void {
 
 ensureColumn("users", "can_use_ai", "INTEGER NOT NULL DEFAULT 0");
 ensureColumn("users", "user_deepseek_key", "TEXT");
+ensureColumn("files", "storage_driver", "TEXT NOT NULL DEFAULT 'local'");
 ensureColumn("meetings", "action_items_json", "TEXT");
 ensureColumn("meetings", "error", "TEXT");
 ensureColumn("meetings", "engine", "TEXT");

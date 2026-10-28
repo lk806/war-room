@@ -8,12 +8,14 @@
     "start": "node --env-file-if-exists=../../.env --import tsx src/index.ts",
     "seed": "node --env-file-if-exists=../../.env --import tsx src/seed.ts",
     "reset:password": "node ../../scripts/reset-password.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:migrate": "node --env-file-if-exists=../../.env --import tsx src/db/migrate.ts"
   },
   "dependencies": {
     "@fastify/cookie": "11.1.3",
     "@fastify/multipart": "10.1.6",
     "@fastify/static": "10.1.7",
+    "@supabase/supabase-js": "2.118.0",
     "@war-room/shared": "*",
     "fastify": "5.12.7",
     "tsx": "4.23.15",

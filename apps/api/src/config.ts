@@ -1,4 +1,4 @@
-import fs from "node:fs";
+﻿import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { MAX_FILE_BYTES } from "@war-room/shared";
@@ -54,6 +54,20 @@ export const DATA_DIR = process.env.DATA_DIR ?? path.join(apiRoot, "data");
 export const STORAGE_DIR = path.join(DATA_DIR, "storage");
 export const DB_PATH = path.join(DATA_DIR, "war-room.db");
 export const WEB_DIST = path.join(repoRoot, "apps", "web", "dist");
+
+/**
+ * 对象存储：配了 Supabase 就传云端，没配就用本地磁盘（DATA_DIR/storage）。
+ * 数据库仍然是本地 SQLite —— 见 README「技术栈」一节。
+ */
+export const SUPABASE_URL = (process.env.SUPABASE_URL ?? "").replace(/\/+$/, "");
+export const SUPABASE_SERVICE_KEY =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_KEY ?? "";
+export const SUPABASE_BUCKET = process.env.SUPABASE_BUCKET ?? "war-room-files";
+/**
+ * 桶是 public 时才把公网直链返回给前端。
+ * 桶设为 private 时置 false（默认按 public 处理），前端就走 /download 签名代理。
+ */
+export const SUPABASE_PUBLIC_URLS = (process.env.SUPABASE_PUBLIC_URLS ?? "true") !== "false";
 
 export const SESSION_COOKIE = "wr_session";
 export const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;

@@ -1,4 +1,4 @@
-node_modules/
+﻿node_modules/
 dist/
 
 # 包管理器缓存
@@ -9,6 +9,8 @@ dist/
 
 # 本地临时目录（验证/构建/压测用，一律不进仓库）
 .verify*/
+.backup/
+.pg-migration-wip/
 .tools/
 .bundle/
 .cleanroom/

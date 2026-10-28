@@ -254,6 +254,8 @@ export interface FileItem {
   taskTitle: string | null;
   downloadCount: number;
   createdAt: string;
+  /** 云端存储（Supabase）时的公网地址；本地存储为 null，走 /download 接口 */
+  url: string | null;
 }
 
 export interface ReminderItem {

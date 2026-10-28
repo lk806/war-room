@@ -92,6 +92,8 @@ CREATE TABLE IF NOT EXISTS files (
   mime           TEXT NOT NULL,
   size           INTEGER NOT NULL,
   storage_key    TEXT NOT NULL,
+  -- local = 存本地磁盘；supabase = 存 Supabase Storage 桶
+  storage_driver TEXT NOT NULL DEFAULT 'local',
   sha256         TEXT NOT NULL,
   version        INTEGER NOT NULL DEFAULT 1,
   task_id        TEXT REFERENCES tasks(id) ON DELETE SET NULL,
