@@ -1,0 +1,32 @@
+{
+  "name": "war-room",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "小组作业作战室 — 面向小组协作的任务/DDL/文件/贡献/会议一站式工作台",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:api": "npm run dev -w @war-room/api",
+    "dev:web": "npm run dev -w @war-room/web",
+    "build": "npm run build -w @war-room/web",
+    "start": "npm run start -w @war-room/api",
+    "seed": "npm run seed -w @war-room/api",
+    "reset:password": "node scripts/reset-password.mjs",
+    "typecheck": "npm run typecheck -w @war-room/web && npm run typecheck -w @war-room/api",
+    "smoke": "node scripts/smoke.mjs",
+    "check:p1": "node scripts/check-p1.mjs",
+    "check:p2": "node scripts/check-p2.mjs",
+    "check:p3": "node scripts/check-p3.mjs",
+    "stub:llm": "node scripts/stub-llm.mjs",
+    "env:check": "node --env-file-if-exists=.env scripts/check-env.mjs",
+    "check:rate": "node scripts/check-rate-limit.mjs",
+    "grant:ai": "node scripts/grant-ai.mjs"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}

@@ -1,0 +1,232 @@
+@import "tailwindcss";
+
+/* 状态色点等类名写在共享包里，显式纳入 Tailwind 的扫描范围 */
+@source "../../../packages/shared/src";
+
+@theme {
+  --font-sans: "Inter", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    ui-sans-serif, system-ui, sans-serif;
+
+  --color-brand-50: #eef2ff;
+  --color-brand-100: #e0e7ff;
+  --color-brand-200: #c7d2fe;
+  --color-brand-300: #a5b4fc;
+  --color-brand-400: #818cf8;
+  --color-brand-500: #6366f1;
+  --color-brand-600: #4f46e5;
+  --color-brand-700: #4338ca;
+  --color-brand-800: #3730a3;
+  --color-brand-900: #312e81;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased;
+    font-family: var(--font-sans);
+  }
+
+  ::selection {
+    @apply bg-brand-200 text-brand-900;
+  }
+}
+
+@layer utilities {
+  /* 看板横向滑动时隐藏滚动条 */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .thin-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .thin-scrollbar::-webkit-scrollbar-thumb {
+    background-color: rgb(203 213 225);
+    border-radius: 9999px;
+  }
+  .thin-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+@keyframes wr-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: wr-fade-in 0.18s ease-out;
+}
+
+/* ===================================================================== */
+/* 打印样式：贡献记录表适配 A4                                            */
+/* ===================================================================== */
+@media print {
+  /* A4 竖向，页边距 12mm —— 浏览器默认页眉页脚请在打印对话框里关掉 */
+  @page {
+    size: A4 portrait;
+    margin: 12mm 12mm 10mm;
+  }
+
+  html,
+  body {
+    height: auto !important;
+    background: #fff !important;
+  }
+
+  /*
+   * 关键：图表是 div + 渐变/锥形渐变画出来的，浏览器默认不打印背景色，
+   * 不强制的话甜甜圈、堆叠条、趋势柱会整块变白（就是"留白"）。
+   */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* 1. 隐藏导航栏、移动端头尾、所有按钮与交互元素 */
+  .app-sidebar,
+  .app-mobile-header,
+  .app-bottom-nav,
+  .no-print,
+  button,
+  .print-hide {
+    display: none !important;
+  }
+
+  /* 2. 解除内部滚动容器的裁切与高度锁定，让内容参与正常分页 */
+  .app-shell,
+  .app-main,
+  .page-root,
+  .page-scroll {
+    display: block !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  .app-shell,
+  .app-main {
+    background: #fff !important;
+  }
+
+  .page-scroll {
+    padding: 0 !important;
+  }
+
+  /* 3. 版式压缩：字号、间距、圆角，尽量一页放下 */
+  body {
+    font-size: 10px;
+    line-height: 1.35;
+  }
+
+  .print-header {
+    display: block !important;
+    border-bottom: 1.5px solid #0f172a;
+    padding-bottom: 3mm;
+    margin-bottom: 3.5mm;
+  }
+
+  /* 卡片内边距收紧 */
+  .print-stat,
+  .page-root section {
+    padding: 2.5mm !important;
+  }
+
+  /* 卡片之间的纵向间距收窄（屏幕上是 space-y-4 = 16px） */
+  .print-stack > * + * {
+    margin-top: 2.5mm !important;
+  }
+
+  /*
+   * 打印时的版心只有 ~186mm 宽，Tailwind 的 lg: / md: 断点不会生效，
+   * 所以用打印专用栅格把「统计卡 4 列」「排行 + 占比 两栏」强制回来，
+   * 否则会塌成 2×2 和上下堆叠，白白多出一页。
+   */
+  .print-grid-4 {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 2mm !important;
+  }
+
+  .print-grid-side {
+    display: grid !important;
+    grid-template-columns: 1.55fr 1fr !important;
+    gap: 2.5mm !important;
+    align-items: start;
+  }
+
+  .page-root section,
+  .print-avoid-break {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* 图表卡片高度对齐，避免一侧高一侧矮 */
+  .print-grid-side > section {
+    height: 100%;
+  }
+
+  /* 卡片标题与表格文字略小 */
+  .page-root h2,
+  .page-root h3 {
+    font-size: 10px !important;
+    margin-bottom: 1.5mm !important;
+  }
+
+  .page-root p,
+  .page-root li,
+  .page-root span {
+    font-size: 9px !important;
+  }
+
+  /* 隐藏卡片里的小灰字说明，省空间 */
+  .print-hide-detail {
+    display: none !important;
+  }
+
+  /* 4. 最近动态压到 8 行，避免顶到第二页 */
+  .print-trim > li:nth-child(n + 9) {
+    display: none !important;
+  }
+
+  .print-trim > li {
+    padding-top: 1mm !important;
+    padding-bottom: 1mm !important;
+  }
+
+  /* 排行行距收紧，给 6 人小组留出余量 */
+  .print-ranking > div + div {
+    margin-top: 1.5mm !important;
+  }
+
+  /* 5. 去掉屏幕上的最大宽度限制，铺满版心 */
+  .print-full-width {
+    max-width: none !important;
+    margin: 0 !important;
+  }
+}
+

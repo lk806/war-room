@@ -1,0 +1,25 @@
+node_modules/
+dist/
+
+# 包管理器缓存
+.pnpm-store/
+.pnpm-cache/
+.pnpm-state/
+.npm-cache/
+
+# 本地临时目录（验证/构建/压测用，一律不进仓库）
+.verify*/
+.tools/
+.bundle/
+.cleanroom/
+.prod-test/
+apps/api/.bundle/
+apps/api/data/
+apps/api/storage/
+
+*.log
+.DS_Store
+
+# 所有环境变量文件（含 .env.production / .env.local），只保留示例文件
+.env*
+!.env.example
