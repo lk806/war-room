@@ -1,4 +1,6 @@
-﻿import crypto from "node:crypto";
+import crypto from "node:crypto";
+import { unlinkSync } from "node:fs";
+import path from "node:path";
 import {
   CONTRIBUTION_WEIGHTS,
   type ContributionKind,
@@ -6,6 +8,7 @@ import {
   type GroupRole,
   type Member,
 } from "@war-room/shared";
+import { STORAGE_DIR } from "../config.ts";
 import { all, get, run } from "../db/index.ts";
 import { newId, nowIso } from "../lib/id.ts";
 import { conflict, forbidden, notFound } from "../lib/http.ts";
@@ -163,9 +166,53 @@ export function joinGroup(userId: string, inviteCode: string): Group {
   return toGroup(team, "MEMBER", count?.c ?? 1);
 }
 
+/**
+ * 解散小组：只有组长（创建者）可以操作。
+ * 先清理本地存储文件（内容寻址，不能误删别的组引用的同一份内容），
+ * 其余数据交给外键 ON DELETE CASCADE。
+ */
+export function deleteGroup(groupId: string, userId: string): { name: string } {
+  const team = get<{ id: string; name: string; owner_id: string }>(
+    "SELECT id, name, owner_id FROM teams WHERE id = ?",
+    groupId,
+  );
+  if (!team) throw notFound("小组不存在");
+
+  const member = get<{ role: string }>(
+    "SELECT role FROM memberships WHERE group_id = ? AND user_id = ?",
+    groupId,
+    userId,
+  );
+  if (!member) throw forbidden("你不是该小组成员");
+  if (team.owner_id !== userId || member.role !== "LEADER") {
+    throw forbidden("只有组长可以解散小组");
+  }
+
+  const files = all<{ storage_key: string; storage_driver: string }>(
+    "SELECT storage_key, storage_driver FROM files WHERE group_id = ?",
+    groupId,
+  );
+  for (const file of files) {
+    if (file.storage_driver !== "local") continue;
+    const shared = get<{ id: string }>(
+      "SELECT id FROM files WHERE storage_key = ? AND group_id <> ? LIMIT 1",
+      file.storage_key,
+      groupId,
+    );
+    if (shared) continue;
+    try {
+      unlinkSync(path.join(STORAGE_DIR, path.basename(file.storage_key)));
+    } catch {
+      /* 磁盘文件不存在时忽略 */
+    }
+  }
+
+  run("DELETE FROM teams WHERE id = ?", groupId);
+  return { name: team.name };
+}
+
 /** 校验用户是否属于小组，顺便返回角色 */
-export function requireMember(
-  groupId: string,
+export function requireMember(  groupId: string,
   userId: string,
 ): { role: GroupRole } {
   const row = get<{ role: GroupRole }>(

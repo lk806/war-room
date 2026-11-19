@@ -1,9 +1,10 @@
-﻿import { useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   BarChart3,
   CalendarClock,
   Check,
+  ChevronDown,
   Copy,
   FolderOpen,
   LayoutDashboard,
@@ -11,6 +12,7 @@ import {
   Mic,
   Plus,
   Settings,
+  Trash2,
   Users,
 } from "lucide-react";
 import { Link, NavLink, useNavigate, useParams } from "react-router-dom";
@@ -37,6 +39,25 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const toast = useToast();
   const [copied, setCopied] = useState(false);
+  const [switcherOpen, setSwitcherOpen] = useState(false);
+
+  /** 解散小组：不可恢复，所以两次确认 */
+  const disbandGroup = async () => {
+    if (!group) return;
+    setSwitcherOpen(false);
+    if (!window.confirm(`确定要解散「${group.name}」吗？\n\n小组内所有任务、文件、会议纪要、贡献记录都会被永久删除，无法恢复。`)) {
+      return;
+    }
+    if (!window.confirm(`最后确认：真的要解散「${group.name}」吗？`)) return;
+    try {
+      await api(`/api/groups/${group.id}`, { method: "DELETE" });
+      queryClient.clear();
+      toast.push(`「${group.name}」已解散`, "success");
+      navigate("/onboarding", { replace: true });
+    } catch (error) {
+      toast.push(error instanceof Error ? error.message : "解散失败，请重试", "error");
+    }
+  };
 
   const copyInvite = async () => {
     if (!group) return;
@@ -77,13 +98,65 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
 
-        <div className="mx-3 mb-2 rounded-xl bg-white/5 px-3 py-2.5 ring-1 ring-white/10">
-          <p className="truncate text-[13px] font-medium text-white" title={group?.name}>
-            {group?.name ?? "加载中…"}
-          </p>
-          <p className="mt-0.5 truncate text-[11px] text-slate-400">
-            {group?.course || "未填写课程"} · {group?.memberCount ?? 0} 人
-          </p>
+        <div className="relative mx-3 mb-2">
+          <button
+            type="button"
+            onClick={() => setSwitcherOpen((open) => !open)}
+            className="flex w-full items-center justify-between gap-2 rounded-xl bg-white/5 px-3 py-2.5 text-left ring-1 ring-white/10 transition-colors hover:bg-white/[0.08]"
+          >
+            <span className="min-w-0">
+              <span className="block truncate text-[13px] font-medium text-white" title={group?.name}>
+                {group?.name ?? "加载中…"}
+              </span>
+              <span className="mt-0.5 block truncate text-[11px] text-slate-400">
+                {group?.course || "未填写课程"} · {group?.memberCount ?? 0} 人
+              </span>
+            </span>
+            <ChevronDown className="size-4 shrink-0 text-slate-400" />
+          </button>
+
+          {switcherOpen && (
+            <div className="absolute inset-x-0 top-full z-30 mt-1 overflow-hidden rounded-xl bg-slate-800 shadow-2xl ring-1 ring-white/10">
+              <p className="px-3 pt-2 pb-1 text-[10px] tracking-wide text-slate-500">我的小组</p>
+              {groups?.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    setSwitcherOpen(false);
+                    navigate(`/g/${item.id}/board`);
+                  }}
+                  className={cx(
+                    "flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-[12px] transition-colors",
+                    item.id === groupId ? "bg-white/10 text-white" : "text-slate-300 hover:bg-white/5",
+                  )}
+                >
+                  <span className="truncate">{item.name}</span>
+                  <span className="shrink-0 text-[10px] text-slate-500">
+                    {item.myRole === "LEADER" ? "组长" : "组员"}
+                  </span>
+                </button>
+              ))}
+              <Link
+                to="/onboarding"
+                onClick={() => setSwitcherOpen(false)}
+                className="flex items-center gap-1.5 border-t border-white/10 px-3 py-2 text-[12px] text-brand-300 transition-colors hover:bg-white/5"
+              >
+                <Plus className="size-3.5" />
+                加入或创建小组
+              </Link>
+              {group?.myRole === "LEADER" && (
+                <button
+                  type="button"
+                  onClick={disbandGroup}
+                  className="flex w-full items-center gap-1.5 border-t border-white/10 px-3 py-2 text-left text-[12px] text-rose-300 transition-colors hover:bg-rose-500/10"
+                >
+                  <Trash2 className="size-3.5" />
+                  解散「{group.name}」
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         <nav className="flex-1 space-y-0.5 px-3 py-2">

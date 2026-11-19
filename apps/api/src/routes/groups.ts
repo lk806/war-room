@@ -7,7 +7,7 @@ import {
 import { parseBody } from "../lib/http.ts";
 import { AUTH_LIMIT_PER_MIN, rateLimit } from "../lib/rate-limit.ts";
 import { requireUser } from "../lib/session.ts";
-import { createGroup, getGroupDetail, joinGroup, listGroups } from "../services/groups.ts";
+import { createGroup, deleteGroup, getGroupDetail, joinGroup, listGroups } from "../services/groups.ts";
 import { createTask, listTasks } from "../services/tasks.ts";
 import { sweepReminders } from "../services/reminders.ts";
 import { groupContext } from "./context.ts";
@@ -40,6 +40,14 @@ export async function groupRoutes(app: FastifyInstance): Promise<void> {
     const user = requireUser(request);
     const { groupId } = request.params as { groupId: string };
     return getGroupDetail(groupId, user.id);
+  });
+
+  /** 解散小组：仅组长可用；不可恢复，前端需二次确认 */
+  app.delete("/api/groups/:groupId", async (request) => {
+    const user = requireUser(request);
+    const { groupId } = request.params as { groupId: string };
+    const result = deleteGroup(groupId, user.id);
+    return { ok: true, name: result.name };
   });
 
   /** 看板一次拉全：组信息 + 成员 + 任务，减少首屏往返 */
