@@ -164,3 +164,18 @@ CREATE TABLE IF NOT EXISTS reminders (
   sent_at    TEXT NOT NULL,
   UNIQUE (task_id, level)
 );
+
+-- 邮箱验证码（注册验证 / 验证码登录 / 找回密码）
+CREATE TABLE IF NOT EXISTS email_codes (
+  id          TEXT PRIMARY KEY,
+  email       TEXT NOT NULL,
+  purpose     TEXT NOT NULL CHECK (purpose IN ('REGISTER', 'LOGIN', 'RESET')),
+  code_hash   TEXT NOT NULL,
+  expires_at  TEXT NOT NULL,
+  attempts    INTEGER NOT NULL DEFAULT 0,
+  consumed_at TEXT,
+  ip          TEXT,
+  created_at  TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_codes_lookup ON email_codes(email, purpose, created_at);

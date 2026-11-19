@@ -90,6 +90,19 @@ export function register(input: RegisterInput): { user: User; token: string } {
   return { user, token: signToken(id, AUTH_SECRET, SESSION_TTL_SECONDS) };
 }
 
+/** 按邮箱查用户（验证码登录用） */
+export function findUserByEmail(email: string): User | null {
+  const row = get<UserRow & { password_hash: string }>(
+    "SELECT * FROM users WHERE email = ?",
+    email.trim().toLowerCase(),
+  );
+  return row ? toUser(row) : null;
+}
+
+/** 直接给已确认身份的用户签发会话（验证码登录用） */
+export function sessionForUser(user: User): { user: User; token: string } {
+  return { user, token: signToken(user.id, AUTH_SECRET, SESSION_TTL_SECONDS) };
+}
 export function login(input: LoginInput): { user: User; token: string } {
   const row = get<UserRow & { password_hash: string }>(
     "SELECT * FROM users WHERE email = ?",

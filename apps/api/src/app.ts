@@ -9,6 +9,7 @@ import { MAX_UPLOAD_BYTES, WEB_DIST, numberEnv } from "./config.ts";
 import { get } from "./db/index.ts";
 import { ApiError } from "./lib/http.ts";
 import { authRoutes } from "./routes/auth.ts";
+import { emailAuthRoutes } from "./routes/email-auth.ts";
 import { aiRoutes } from "./routes/ai.ts";
 import { contributionRoutes } from "./routes/contributions.ts";
 import { eventRoutes } from "./routes/events.ts";
@@ -122,6 +123,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   });
 
   await app.register(authRoutes);
+  await app.register(emailAuthRoutes);
   await app.register(groupRoutes);
   await app.register(taskRoutes);
   await app.register(fileRoutes);

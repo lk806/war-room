@@ -63,6 +63,14 @@ export const SUPABASE_URL = (process.env.SUPABASE_URL ?? "").replace(/\/+$/, "")
 export const SUPABASE_SERVICE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_KEY ?? "";
 export const SUPABASE_BUCKET = process.env.SUPABASE_BUCKET ?? "war-room-files";
+
+/** 邮件服务（163/QQ SMTP 等）：四项齐全才会启用邮箱验证码 */
+export const SMTP_HOST = process.env.SMTP_HOST ?? "";
+export const SMTP_PORT = Number(process.env.SMTP_PORT ?? 465);
+export const SMTP_SECURE = (process.env.SMTP_SECURE ?? "true") !== "false";
+export const SMTP_USER = process.env.SMTP_USER ?? "";
+export const SMTP_PASS = process.env.SMTP_PASS ?? "";
+export const SMTP_FROM = process.env.SMTP_FROM ?? SMTP_USER;
 /**
  * 桶是 public 时才把公网直链返回给前端。
  * 桶设为 private 时置 false（默认按 public 处理），前端就走 /download 签名代理。
