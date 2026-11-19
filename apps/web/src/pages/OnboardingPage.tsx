@@ -76,7 +76,7 @@ export default function OnboardingPage() {
             </div>
             <h1 className="text-2xl font-semibold text-slate-900">先建立一个小组，或加入已有小组</h1>
             <p className="mt-1.5 text-[13px] text-slate-500">
-              建立小组后你会成为组长，把 6 位邀请码发给组员即可把他们拉进来。
+              建立小组后你会成为组长，把邀请码（8 位字母数字）发给组员即可把他们拉进来。
             </p>
           </div>
           <button
@@ -165,14 +165,14 @@ export default function OnboardingPage() {
             </form>
           ) : (
             <form onSubmit={onJoin} className="space-y-4">
-              <Field label="邀请码" hint="组长在侧边栏可以看到 6 位邀请码">
+              <Field label="邀请码" hint="组长在侧边栏可以看到邀请码（8 位字母数字）">
                 <Input
                   value={inviteCode}
                   onChange={(event) =>
                     setInviteCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))
                   }
-                  placeholder="例如：K7M2QP"
-                  maxLength={6}
+                  placeholder="例如：7UGCGYMU"
+                  maxLength={12}
                   className="font-mono text-base tracking-[0.3em] uppercase"
                   required
                 />
@@ -180,7 +180,7 @@ export default function OnboardingPage() {
               <Button
                 type="submit"
                 loading={joinMutation.isPending}
-                disabled={inviteCode.trim().length !== 6}
+                disabled={inviteCode.trim().length < 6 || inviteCode.trim().length > 12}
                 className="w-full sm:w-auto"
               >
                 加入小组
