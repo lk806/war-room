@@ -3,6 +3,7 @@ import { Readable } from "node:stream";
 import type { FastifyInstance } from "fastify";
 import { formatFileLimit, type FileItem, type ReminderItem } from "@war-room/shared";
 import { fetchObject, signedObjectUrl, storageInfo } from "../services/storage.ts";
+import { assertDiskSpace } from "../services/retention.ts";
 import { MAX_UPLOAD_BYTES } from "../config.ts";
 import { ApiError, badRequest, notFound } from "../lib/http.ts";
 import { requireUser } from "../lib/session.ts";
@@ -30,6 +31,9 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
     const user = requireUser(request);
     const { groupId } = request.params as { groupId: string };
     requireMember(groupId, user.id);
+
+    // 磁盘快满时直接拒绝，避免写满系统盘导致整站不可用
+    assertDiskSpace();
 
     const query = request.query as { taskId?: string };
     const taskId = query.taskId?.trim() || null;

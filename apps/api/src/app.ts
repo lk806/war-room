@@ -21,9 +21,12 @@ import { recoverStaleJobs } from "./services/meetings.ts";
 import { closeAllSubscribers } from "./services/realtime.ts";
 import { storageInfo } from "./services/storage.ts";
 import { sweepReminders } from "./services/reminders.ts";
+import { sweepExpiredFiles } from "./services/retention.ts";
 
 /** 提醒扫描间隔：默认 60s；测试时可用环境变量缩短 */
 const SWEEP_INTERVAL_MS = numberEnv("REMINDER_SWEEP_MS", 60_000, 1000);
+/** 过期文件清理间隔：默认 6 小时 */
+const FILE_SWEEP_INTERVAL_MS = numberEnv("FILE_SWEEP_MS", 6 * 3600_000, 60_000);
 
 /** 组装 Fastify 应用；index.ts 与测试脚本共用 */
 export async function buildApp(): Promise<FastifyInstance> {
@@ -164,6 +167,7 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   // DDL 提醒定时扫描：启动时先补扫一次，之后每分钟一次
   let reminderTimer: ReturnType<typeof setInterval> | null = null;
+  let fileTimer: ReturnType<typeof setInterval> | null = null;
   app.addHook("onReady", async () => {
     // 启动自愈：上次进程重启时中断的转写 / AI 任务标记为失败，避免页面永远卡在「转写中」
     try {
@@ -186,10 +190,24 @@ export async function buildApp(): Promise<FastifyInstance> {
     sweep();
     reminderTimer = setInterval(sweep, SWEEP_INTERVAL_MS);
     reminderTimer.unref();
+
+    // 过期文件清理：启动时清一次，之后每 6 小时一次
+    const sweepFiles = () => {
+      try {
+        const removed = sweepExpiredFiles();
+        if (removed > 0) app.log.info({ removed }, "已清理过期文件");
+      } catch (error) {
+        app.log.error(error instanceof Error ? error : String(error), "过期文件清理失败");
+      }
+    };
+    sweepFiles();
+    fileTimer = setInterval(sweepFiles, FILE_SWEEP_INTERVAL_MS);
+    fileTimer.unref();
   });
 
   app.addHook("onClose", async () => {
     if (reminderTimer) clearInterval(reminderTimer);
+    if (fileTimer) clearInterval(fileTimer);
     // SSE 是长连接，不主动断开的话 app.close() 会一直等下去
     const closed = closeAllSubscribers();
     if (closed > 0) app.log.info({ closed }, "已断开所有实时连接");

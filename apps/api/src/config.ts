@@ -71,6 +71,11 @@ export const SMTP_SECURE = (process.env.SMTP_SECURE ?? "true") !== "false";
 export const SMTP_USER = process.env.SMTP_USER ?? "";
 export const SMTP_PASS = process.env.SMTP_PASS ?? "";
 export const SMTP_FROM = process.env.SMTP_FROM ?? SMTP_USER;
+
+/** 磁盘水位保护：剩余空间低于该值时拒绝上传（默认 2GB；设为 0 关闭） */
+export const MIN_FREE_BYTES = numberEnv("MIN_FREE_BYTES", 2 * 1024 ** 3, 0);
+/** 文件保留天数：超过自动清理（默认 30 天；设为 0 关闭） */
+export const FILE_RETENTION_DAYS = numberEnv("FILE_RETENTION_DAYS", 30, 0);
 /**
  * 桶是 public 时才把公网直链返回给前端。
  * 桶设为 private 时置 false（默认按 public 处理），前端就走 /download 签名代理。
