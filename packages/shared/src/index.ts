@@ -442,6 +442,9 @@ export interface Meeting {
   hasAudio: boolean;
   audioUrl: string | null;
   transcript: Transcript | null;
+  /** 人工校对信息：谁在什么时候改过 */
+  transcriptEditedAt: string | null;
+  transcriptEditedBy: string | null;
   minutesMarkdown: string | null;
   actionItems: ActionItem[];
   error: string | null;
@@ -512,9 +515,22 @@ export const createMeetingSchema = z.object({
 });
 export type CreateMeetingInput = z.infer<typeof createMeetingSchema>;
 
-export const updateTranscriptSchema = z.object({
-  text: z.string().trim().min(1, "逐字稿不能为空").max(20000, "逐字稿太长"),
+export const transcriptSegmentSchema = z.object({
+  start: z.number().min(0),
+  end: z.number().min(0),
+  speaker: z.string().trim().max(20).default("发言人"),
+  text: z.string().trim().min(1, "段落内容不能为空").max(2000, "单段太长"),
 });
+
+/** 人工修正：可以整段替换（text），也可以按分段提交（segments） */
+export const updateTranscriptSchema = z
+  .object({
+    text: z.string().trim().min(1).max(20000).optional(),
+    segments: z.array(transcriptSegmentSchema).min(1).max(200).optional(),
+  })
+  .refine((value) => Boolean(value.text) || Boolean(value.segments), {
+    message: "请提供逐字稿内容",
+  });
 export type UpdateTranscriptInput = z.infer<typeof updateTranscriptSchema>;
 
 export const meetingTasksSchema = z.object({

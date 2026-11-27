@@ -131,6 +131,9 @@ CREATE TABLE IF NOT EXISTS meetings (
   status           TEXT NOT NULL DEFAULT 'DRAFT'
                    CHECK (status IN ('DRAFT', 'TRANSCRIBING', 'TRANSCRIBED', 'SUMMARIZED', 'FAILED')),
   transcript_json  TEXT,
+  -- 人工校对留痕
+  transcript_edited_at TEXT,
+  transcript_edited_by TEXT,
   minutes_markdown TEXT,
   action_items_json TEXT,
   engine           TEXT,

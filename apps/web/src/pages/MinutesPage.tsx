@@ -16,12 +16,12 @@ import {
   Wand2,
 } from "lucide-react";
 import { useParams } from "react-router-dom";
-import type { ActionItem, Meeting, MeetingStatus } from "@war-room/shared";
+import type { ActionItem, Meeting, MeetingStatus, TranscriptSegment } from "@war-room/shared";
 import { MEETING_STATUS_META } from "@war-room/shared";
 import { Button, Field, Input, Modal, Spinner, cx } from "../components/ui.tsx";
 import { useBoardRealtime } from "../hooks/useBoardRealtime.ts";
 import { api, errorMessage } from "../lib/api.ts";
-import { relativeTime } from "../lib/format.ts";
+import { formatDateTime, relativeTime } from "../lib/format.ts";
 import {
   aiStatusQuery,
   boardQuery,
@@ -266,7 +266,8 @@ function MeetingDetail({ meetingId, groupId }: { meetingId: string; groupId: str
 
   const [uploading, setUploading] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState("");
+  /** 人工修正草稿：按段落编辑，保留时间轴与发言人 */
+  const [draftSegments, setDraftSegments] = useState<TranscriptSegment[]>([]);
   const [picked, setPicked] = useState<string[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -324,12 +325,12 @@ function MeetingDetail({ meetingId, groupId }: { meetingId: string; groupId: str
     mutationFn: () =>
       api<{ meeting: Meeting }>(`/api/meetings/${meetingId}/transcript`, {
         method: "PATCH",
-        body: { text: draft },
+        body: { segments: draftSegments.map((segment) => ({ ...segment, text: segment.text.trim() })) },
       }),
     onSuccess: () => {
       setEditing(false);
       invalidate();
-      toast.push("逐字稿已保存", "success");
+      toast.push("逐字稿已保存（已记录校对信息）", "success");
     },
     onError: (error) => toast.push(errorMessage(error), "error"),
   });
@@ -582,17 +583,23 @@ function MeetingDetail({ meetingId, groupId }: { meetingId: string; groupId: str
               {data.transcript.segments.length} 段
             </span>
           )}
+          {data.transcriptEditedAt && (
+            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] text-emerald-700">
+              已人工校对{data.transcriptEditedBy ? ` · ${data.transcriptEditedBy}` : ""} ·{" "}
+              {formatDateTime(data.transcriptEditedAt)}
+            </span>
+          )}
           <div className="ml-auto flex items-center gap-2">
             {data.transcript && !editing && (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  setDraft(data.transcript?.text ?? "");
+                  setDraftSegments((data.transcript?.segments ?? []).map((segment) => ({ ...segment })));
                   setEditing(true);
                 }}
               >
-                编辑全文
+                人工修正
               </Button>
             )}
           </div>
@@ -613,14 +620,43 @@ function MeetingDetail({ meetingId, groupId }: { meetingId: string; groupId: str
 
         {data.transcript && editing && (
           <div className="space-y-2">
-            <textarea
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              rows={12}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-[13px] leading-relaxed text-slate-700 focus:border-brand-400 focus:ring-4 focus:ring-brand-500/10 focus:outline-none"
-            />
+            {draftSegments.map((segment, index) => (
+              <div key={index} className="flex items-start gap-2">
+                <span className="mt-2 w-11 shrink-0 font-mono text-[11px] text-slate-400">
+                  {formatDuration(segment.start)}
+                </span>
+                <input
+                  value={segment.speaker}
+                  onChange={(event) =>
+                    setDraftSegments((list) =>
+                      list.map((item, i) => (i === index ? { ...item, speaker: event.target.value } : item)),
+                    )
+                  }
+                  className="mt-1 w-20 shrink-0 rounded-lg border border-slate-200 px-2 py-1 text-[12px] text-slate-700 focus:border-brand-400 focus:outline-none"
+                  maxLength={20}
+                />
+                <textarea
+                  value={segment.text}
+                  onChange={(event) =>
+                    setDraftSegments((list) =>
+                      list.map((item, i) => (i === index ? { ...item, text: event.target.value } : item)),
+                    )
+                  }
+                  rows={2}
+                  className="min-w-0 flex-1 rounded-lg border border-slate-200 px-2 py-1 text-[13px] leading-relaxed text-slate-700 focus:border-brand-400 focus:ring-2 focus:ring-brand-500/10 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setDraftSegments((list) => list.filter((_, i) => i !== index))}
+                  className="mt-2 shrink-0 text-[11px] text-slate-400 hover:text-rose-600"
+                  title="删除这一段"
+                >
+                  删除
+                </button>
+              </div>
+            ))}
             <p className="text-[11px] text-slate-400">
-              每行按「说话人：内容」的格式保存，会后修改可以让 AI 纪要更准。
+              逐段修正识别错的字或说话人，保存后会记录「谁校对过」，AI 纪要也基于修正后的文字生成。
             </p>
             <div className="flex justify-end gap-2">
               <Button variant="ghost" size="sm" onClick={() => setEditing(false)}>
@@ -630,9 +666,9 @@ function MeetingDetail({ meetingId, groupId }: { meetingId: string; groupId: str
                 size="sm"
                 onClick={() => saveTranscript.mutate()}
                 loading={saveTranscript.isPending}
-                disabled={!draft.trim()}
+                disabled={draftSegments.length === 0 || draftSegments.some((item) => !item.text.trim())}
               >
-                保存
+                保存修正
               </Button>
             </div>
           </div>

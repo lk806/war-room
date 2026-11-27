@@ -36,6 +36,8 @@ ensureColumn("meetings", "action_items_json", "TEXT");
 ensureColumn("meetings", "error", "TEXT");
 ensureColumn("meetings", "engine", "TEXT");
 ensureColumn("meetings", "audio_mime", "TEXT");
+ensureColumn("meetings", "transcript_edited_at", "TEXT");
+ensureColumn("meetings", "transcript_edited_by", "TEXT");
 
 /** 查询多行 */
 export function all<T>(sql: string, ...params: SqlValue[]): T[] {

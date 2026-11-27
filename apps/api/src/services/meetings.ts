@@ -18,6 +18,7 @@ import type {
   Task,
   Transcript,
   TranscriptSegment,
+  UpdateTranscriptInput,
 } from "@war-room/shared";
 import { aiStatus, asrEngine, textEngine, transcribeAudio } from "../ai/client.ts";
 import { createJob, finishJob } from "../ai/jobs.ts";
@@ -52,12 +53,16 @@ interface MeetingRow {
   created_by: string;
   created_at: string;
   created_by_name: string;
+  transcript_edited_at: string | null;
+  transcript_edited_by: string | null;
+  transcript_edited_by_name: string | null;
 }
 
 const SELECT_MEETING = `
-  SELECT m.*, u.name AS created_by_name
+  SELECT m.*, u.name AS created_by_name, eu.name AS transcript_edited_by_name
     FROM meetings m
     JOIN users u ON u.id = m.created_by
+    LEFT JOIN users eu ON eu.id = m.transcript_edited_by
 `;
 
 function parseJson<T>(raw: string | null): T | null {
@@ -85,6 +90,8 @@ function toMeeting(row: MeetingRow): Meeting {
     actionItems: parseJson<ActionItem[]>(row.action_items_json) ?? [],
     error: row.error,
     createdByName: row.created_by_name,
+    transcriptEditedAt: row.transcript_edited_at,
+    transcriptEditedBy: row.transcript_edited_by_name,
     createdAt: row.created_at,
     engine,
   };
@@ -540,33 +547,53 @@ export async function generateMinutes(
   }
 }
 
-/** 人工修订逐字稿：整段替换，并把分段压缩为一条 */
+/**
+ * 人工修正逐字稿：
+ *  - 传 segments：按段落逐条修正（保留时间轴与发言人）
+ *  - 传 text：整段替换，按「说话人：内容」的行格式重新切段
+ * 两种情况都会记录「谁在什么时候校对过」，用于留痕。
+ */
 export function updateTranscript(
   meetingId: string,
   userId: string,
-  text: string,
+  input: UpdateTranscriptInput,
 ): Meeting {
   const row = getRow(meetingId);
   requireMember(row.group_id, userId);
 
-  const segments: TranscriptSegment[] = text
-    .split(/\n+/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line, index) => {
-      const match = line.match(/^([^：:]{1,12})[：:]\s*(.*)$/);
-      return {
-        start: index * 15,
-        end: index * 15 + 15,
-        speaker: match?.[1]?.trim() || "发言人",
-        text: match?.[2]?.trim() || line,
-      };
-    });
+  const segments: TranscriptSegment[] = input.segments?.length
+    ? [...input.segments]
+        .sort((a, b) => a.start - b.start)
+        .map((segment) => ({
+          start: Math.max(0, Math.round(segment.start)),
+          end: Math.max(0, Math.round(segment.end)),
+          speaker: segment.speaker.trim() || "发言人",
+          text: segment.text.trim(),
+        }))
+    : (input.text ?? "")
+        .split(/\n+/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line, index) => {
+          const match = line.match(/^([^：:]{1,12})[：:]\s*(.*)$/);
+          return {
+            start: index * 15,
+            end: index * 15 + 15,
+            speaker: match?.[1]?.trim() || "发言人",
+            text: match?.[2]?.trim() || line,
+          };
+        });
+
+  const text = segments.map((segment) => `${segment.speaker}：${segment.text}`).join("\n");
 
   run(
-    `UPDATE meetings SET transcript_json = ?, status = CASE WHEN status = 'FAILED' THEN 'TRANSCRIBED' ELSE status END
+    `UPDATE meetings SET transcript_json = ?,
+            status = CASE WHEN status = 'FAILED' THEN 'TRANSCRIBED' ELSE status END,
+            transcript_edited_at = ?, transcript_edited_by = ?
       WHERE id = ?`,
     JSON.stringify({ text, segments }),
+    nowIso(),
+    userId,
     meetingId,
   );
 

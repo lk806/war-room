@@ -119,7 +119,7 @@ export async function meetingRoutes(app: FastifyInstance): Promise<void> {
     const user = requireUser(request);
     const { meetingId } = request.params as { meetingId: string };
     const input = parseBody(updateTranscriptSchema, request.body);
-    return { meeting: updateTranscript(meetingId, user.id, input.text) };
+    return { meeting: updateTranscript(meetingId, user.id, input) };
   });
 
   /** 生成纪要与行动项 */
