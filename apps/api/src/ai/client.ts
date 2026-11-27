@@ -67,6 +67,36 @@ export interface LlmEndpoint {
   model: string;
 }
 
+
+/**
+ * 把上游（大模型 / 语音识别）的错误翻译成人话。
+ * 上游多为英文 JSON（如 {"code":30001,"message":"Sorry, your account balance is insufficient"}），
+ * 直接甩给用户既不友好也泄露出错细节，这里按状态码与关键词归类。
+ */
+function describeUpstream(kind: "大模型" | "语音识别", status: number, detail: string): string {
+  const lower = detail.toLowerCase();
+  if (status === 401 || status === 403 || lower.includes("invalid api key") || lower.includes("unauthorized")) {
+    return `${kind}服务鉴权失败，请检查密钥配置`;
+  }
+  if (
+    status === 402 ||
+    lower.includes("balance is insufficient") ||
+    lower.includes("insufficient balance") ||
+    lower.includes("quota") ||
+    lower.includes("30001")
+  ) {
+    return `${kind}服务额度不足（账户余额或配额用完），请联系管理员充值后重试`;
+  }
+  if (status === 429 || lower.includes("rate limit") || lower.includes("too many requests")) {
+    return `${kind}服务请求过于频繁，请稍后再试`;
+  }
+  if (status === 413) return "音频文件过大，请压缩或改用更低的码率";
+  if (status === 400 || status === 422) {
+    return `${kind}服务无法处理该内容（格式或参数不被支持），请换一个文件重试`;
+  }
+  if (status >= 500) return `${kind}服务暂时不可用，请稍后重试`;
+  return `${kind}服务返回异常（状态码 ${status}），请稍后重试`;
+}
 /** 调用 OpenAI 兼容的 chat/completions，要求返回 JSON 对象 */
 async function chatJSONUnlocked(
   messages: ChatMessage[],
@@ -104,8 +134,10 @@ async function chatJSONUnlocked(
     });
 
     if (!response.ok) {
-      const detail = (await response.text()).slice(0, 200);
-      throw new ApiError(502, `大模型接口返回 ${response.status}：${detail}`);
+      const detail = (await response.text()).slice(0, 500);
+      const reason = describeUpstream("大模型", response.status, detail);
+      console.error("[ai] 大模型返回错误", response.status, detail);
+      throw new ApiError(502, reason);
     }
 
     const payload = (await response.json()) as {
@@ -187,8 +219,10 @@ async function transcribeAudioUnlocked(
     });
 
     if (!response.ok) {
-      const detail = (await response.text()).slice(0, 200);
-      throw new ApiError(502, `语音识别接口返回 ${response.status}：${detail}`);
+      const detail = (await response.text()).slice(0, 500);
+      const reason = describeUpstream("语音识别", response.status, detail);
+      console.error("[asr] 语音识别返回错误", response.status, detail);
+      throw new ApiError(502, reason);
     }
 
     const payload = (await response.json()) as {
