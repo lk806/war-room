@@ -1,4 +1,4 @@
-﻿import { timingSafeEqual } from "node:crypto";
+import { timingSafeEqual } from "node:crypto";
 import type { LoginInput, RegisterInput, User } from "@war-room/shared";
 import {
   AI_ACTIVATION_CODE,
@@ -88,6 +88,18 @@ export function register(input: RegisterInput): { user: User; token: string } {
     byokHint: null,
   };
   return { user, token: signToken(id, AUTH_SECRET, SESSION_TTL_SECONDS) };
+}
+
+/**
+ * 忘记密码：校验过验证码后重置密码。
+ * 用户不存在时返回 false，路由层给出同样的提示，避免暴露账号是否存在。
+ */
+export function resetPassword(email: string, newPassword: string): boolean {
+  const normalized = email.trim().toLowerCase();
+  const row = get<{ id: string }>("SELECT id FROM users WHERE email = ?", normalized);
+  if (!row) return false;
+  run("UPDATE users SET password_hash = ? WHERE id = ?", hashPassword(newPassword), row.id);
+  return true;
 }
 
 /** 按邮箱查用户（验证码登录用） */

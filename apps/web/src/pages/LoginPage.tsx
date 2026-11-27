@@ -164,10 +164,15 @@ export default function LoginPage() {
       </form>
 
       <div className="mt-4 flex items-center justify-between text-[13px]">
-        <span className="text-slate-500">还没有账号？</span>
-        <Link to="/register" className="font-medium text-brand-600 hover:text-brand-700">
-          注册一个
+        <Link to="/reset-password" className="text-slate-500 hover:text-brand-600">
+          忘记密码？
         </Link>
+        <span className="flex items-center gap-1">
+          <span className="text-slate-500">还没有账号？</span>
+          <Link to="/register" className="font-medium text-brand-600 hover:text-brand-700">
+            注册一个
+          </Link>
+        </span>
       </div>
 
       {/* 演示账号只在开发环境出现：生产构建里这段会被 Vite 按 DEV=false 剔除，

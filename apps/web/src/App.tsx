@@ -1,4 +1,4 @@
-﻿import type { ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { groupsQuery, meQuery } from "./lib/queries.ts";
@@ -13,6 +13,7 @@ import MinutesPage from "./pages/MinutesPage.tsx";
 import SettingsPage from "./pages/SettingsPage.tsx";
 import OnboardingPage from "./pages/OnboardingPage.tsx";
 import RegisterPage from "./pages/RegisterPage.tsx";
+import ResetPasswordPage from "./pages/ResetPasswordPage.tsx";
 
 function Splash({ label = "正在进入作战室…" }: { label?: string }) {
   return (
@@ -64,6 +65,7 @@ export default function App() {
       <Route path="/" element={<HomeRedirect />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route
         path="/onboarding"
         element={

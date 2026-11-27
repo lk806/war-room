@@ -1,4 +1,4 @@
-﻿import crypto from "node:crypto";
+import crypto from "node:crypto";
 import { all, get, run } from "../db/index.ts";
 import { ApiError, badRequest } from "../lib/http.ts";
 import { newId, nowIso } from "../lib/id.ts";
@@ -35,6 +35,12 @@ export async function issueCode(params: {
 }): Promise<{ expiresIn: number }> {
   if (!EMAIL_ENABLED) throw new ApiError(429, "服务器未配置邮件服务，暂时无法发送验证码");
   const email = normalizeEmail(params.email);
+
+  // 重置密码只给已注册邮箱发信：未注册时静默成功，避免被用来探测账号是否存在
+  if (params.purpose === "RESET") {
+    const exists = await get<{ id: string }>("SELECT id FROM users WHERE email = ?", email);
+    if (!exists) return { expiresIn: CODE_TTL_MINUTES * 60 };
+  }
 
   const recent = await get<{ created_at: string }>(
     "SELECT created_at FROM email_codes WHERE email = ? ORDER BY created_at DESC LIMIT 1",

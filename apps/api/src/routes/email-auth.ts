@@ -4,7 +4,7 @@ import { parseBody } from "../lib/http.ts";
 import { setSessionCookie } from "../lib/session.ts";
 import { AUTH_LIMIT_PER_MIN, rateLimit } from "../lib/rate-limit.ts";
 import { ApiError } from "../lib/http.ts";
-import { findUserByEmail, register, sessionForUser } from "../services/auth.ts";
+import { findUserByEmail, register, resetPassword, sessionForUser } from "../services/auth.ts";
 import { CODE_TTL_MINUTES, issueCode, verifyCode } from "../services/email-code.ts";
 import { EMAIL_ENABLED } from "../services/email.ts";
 
@@ -24,6 +24,12 @@ const registerWithCodeSchema = z.object({
   email: emailSchema,
   code: codeSchema,
   name: z.string().trim().min(1, "请填写昵称").max(24, "昵称最多 24 字"),
+  password: z.string().min(6, "密码至少 6 位").max(72, "密码最多 72 位"),
+});
+
+const resetPasswordSchema = z.object({
+  email: emailSchema,
+  code: codeSchema,
   password: z.string().min(6, "密码至少 6 位").max(72, "密码最多 72 位"),
 });
 
@@ -63,8 +69,17 @@ export async function emailAuthRoutes(app: FastifyInstance): Promise<void> {
     return { user };
   });
 
-  /** 验证码登录（免密） */
-  app.post("/api/auth/login-by-code", async (request, reply) => {
+  /** 忘记密码：验证码校验通过后重置密码 */
+  app.post("/api/auth/reset-password", async (request) => {
+    rateLimit("auth", request.ip, AUTH_LIMIT_PER_MIN);
+    const input = parseBody(resetPasswordSchema, request.body);
+    await verifyCode({ email: input.email, purpose: "RESET", code: input.code });
+    resetPassword(input.email, input.password);
+    // 无论账号是否存在都返回同样的结果，避免被用来枚举邮箱
+    return { ok: true, message: "密码已重置，请用新密码登录" };
+  });
+
+  /** 验证码登录（免密） */  app.post("/api/auth/login-by-code", async (request, reply) => {
     rateLimit("auth", request.ip, AUTH_LIMIT_PER_MIN);
     const input = parseBody(loginWithCodeSchema, request.body);
     const existing = findUserByEmail(input.email);

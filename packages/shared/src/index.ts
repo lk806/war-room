@@ -533,6 +533,14 @@ export const updateTranscriptSchema = z
   });
 export type UpdateTranscriptInput = z.infer<typeof updateTranscriptSchema>;
 
+/** 忘记密码：邮箱验证码 + 新密码 */
+export const resetPasswordSchema = z.object({
+  email: z.string().trim().toLowerCase().email("邮箱格式不正确"),
+  code: z.string().trim().regex(/^\d{6}$/, "验证码是 6 位数字"),
+  password: z.string().min(6, "密码至少 6 位").max(72, "密码最多 72 位"),
+});
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+
 export const meetingTasksSchema = z.object({
   actionItemIds: z.array(z.string()).min(1, "至少选择一个行动项").max(20),
 });
