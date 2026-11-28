@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+﻿import { useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   BarChart3,
@@ -84,8 +84,51 @@ export default function AppShell({ children }: { children: ReactNode }) {
     }
   };
 
-  return (
-    <div className="app-shell flex h-full bg-slate-50">
+  /** 小组切换面板：桌面侧边栏和移动端头部共用同一份 */
+  const switcherPanel = (
+    <div className="overflow-hidden rounded-xl bg-slate-800 shadow-2xl ring-1 ring-white/10">
+      <p className="px-3 pt-2 pb-1 text-[10px] tracking-wide text-slate-500">我的小组</p>
+      {groups?.map((item) => (
+        <button
+          key={item.id}
+          type="button"
+          onClick={() => {
+            setSwitcherOpen(false);
+            navigate(`/g/${item.id}/board`);
+          }}
+          className={cx(
+            "flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-[12px] transition-colors",
+            item.id === groupId ? "bg-white/10 text-white" : "text-slate-300 hover:bg-white/5",
+          )}
+        >
+          <span className="truncate">{item.name}</span>
+          <span className="shrink-0 text-[10px] text-slate-500">
+            {item.myRole === "LEADER" ? "组长" : "组员"}
+          </span>
+        </button>
+      ))}
+      <Link
+        to="/onboarding"
+        onClick={() => setSwitcherOpen(false)}
+        className="flex items-center gap-1.5 border-t border-white/10 px-3 py-2 text-[12px] text-brand-300 transition-colors hover:bg-white/5"
+      >
+        <Plus className="size-3.5" />
+        加入或创建小组
+      </Link>
+      {group?.myRole === "LEADER" && (
+        <button
+          type="button"
+          onClick={disbandGroup}
+          className="flex w-full items-center gap-1.5 border-t border-white/10 px-3 py-2 text-left text-[12px] text-rose-300 transition-colors hover:bg-rose-500/10"
+        >
+          <Trash2 className="size-3.5" />
+          解散「{group.name}」
+        </button>
+      )}
+    </div>
+  );
+
+  return (    <div className="app-shell flex h-full bg-slate-50">
       {/* ------------------------ 桌面端侧边栏 ------------------------ */}
       <aside className="app-sidebar hidden w-60 shrink-0 flex-col bg-slate-900 lg:flex">
         <div className="flex items-center gap-2.5 px-5 pt-5 pb-4">
@@ -116,46 +159,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </button>
 
           {switcherOpen && (
-            <div className="absolute inset-x-0 top-full z-30 mt-1 overflow-hidden rounded-xl bg-slate-800 shadow-2xl ring-1 ring-white/10">
-              <p className="px-3 pt-2 pb-1 text-[10px] tracking-wide text-slate-500">我的小组</p>
-              {groups?.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => {
-                    setSwitcherOpen(false);
-                    navigate(`/g/${item.id}/board`);
-                  }}
-                  className={cx(
-                    "flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-[12px] transition-colors",
-                    item.id === groupId ? "bg-white/10 text-white" : "text-slate-300 hover:bg-white/5",
-                  )}
-                >
-                  <span className="truncate">{item.name}</span>
-                  <span className="shrink-0 text-[10px] text-slate-500">
-                    {item.myRole === "LEADER" ? "组长" : "组员"}
-                  </span>
-                </button>
-              ))}
-              <Link
-                to="/onboarding"
-                onClick={() => setSwitcherOpen(false)}
-                className="flex items-center gap-1.5 border-t border-white/10 px-3 py-2 text-[12px] text-brand-300 transition-colors hover:bg-white/5"
-              >
-                <Plus className="size-3.5" />
-                加入或创建小组
-              </Link>
-              {group?.myRole === "LEADER" && (
-                <button
-                  type="button"
-                  onClick={disbandGroup}
-                  className="flex w-full items-center gap-1.5 border-t border-white/10 px-3 py-2 text-left text-[12px] text-rose-300 transition-colors hover:bg-rose-500/10"
-                >
-                  <Trash2 className="size-3.5" />
-                  解散「{group.name}」
-                </button>
-              )}
-            </div>
+            <div className="absolute inset-x-0 top-full z-30 mt-1">{switcherPanel}</div>
           )}
         </div>
 
@@ -217,16 +221,29 @@ export default function AppShell({ children }: { children: ReactNode }) {
       {/* ------------------------ 主区域 ------------------------ */}
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="app-mobile-header sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white/90 px-4 backdrop-blur lg:hidden">
-          <div className="flex min-w-0 items-center gap-2">
-            <div className="flex size-7 items-center justify-center rounded-lg bg-brand-500 text-xs font-bold text-white">
-              战
-            </div>
-            <div className="min-w-0 leading-tight">
-              <p className="truncate text-[13px] font-semibold text-slate-900">{group?.name ?? "作战室"}</p>
-              <p className="truncate text-[10px] text-slate-500">
-                {group?.memberCount ?? 0} 人 · 邀请码 {group?.inviteCode ?? "······"}
-              </p>
-            </div>
+          <div className="relative flex min-w-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSwitcherOpen((open) => !open)}
+              className="flex min-w-0 items-center gap-2 rounded-lg px-1 py-1 text-left active:bg-slate-100"
+              title="切换或加入小组"
+            >
+              <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-brand-500 text-xs font-bold text-white">
+                战
+              </div>
+              <div className="min-w-0 leading-tight">
+                <p className="flex items-center gap-1 truncate text-[13px] font-semibold text-slate-900">
+                  <span className="truncate">{group?.name ?? "作战室"}</span>
+                  <ChevronDown className="size-3.5 shrink-0 text-slate-400" />
+                </p>
+                <p className="truncate text-[10px] text-slate-500">
+                  {group?.memberCount ?? 0} 人 · 邀请码 {group?.inviteCode ?? "······"}
+                </p>
+              </div>
+            </button>
+            {switcherOpen && (
+              <div className="absolute top-full left-0 z-40 mt-2 w-72">{switcherPanel}</div>
+            )}
           </div>
           <button
             type="button"
